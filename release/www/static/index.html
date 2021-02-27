@@ -1,0 +1,173 @@
+<html>
+<body>
+
+<br/>
+<input type="text" id="rtsp_url" style="width:500px" value="rtsp://172.26.36.84:8554/slamtv60.264" />
+<input type="button" id="play_rtsp_url" value="播放" onclick="play_rtsp_url()"/>
+<input type="button" id="stop_rtsp_url" value="停止" onclick="stop_rtsp_url()"/>
+<br/>
+
+<div id="remoteVideos"></div>
+
+
+<video id="video" autoplay></video>
+<br>
+
+
+<p id="result"> </p></br>
+<hr>
+<p id="wsStatus">websocket未连接</p>
+<button type="button" name="cmdSendMsg" onclick="SendMsg();"> 发送 </button>
+<input type="text" id="sendmsg" /></br>
+接收到消息:<p id="wsRecv"> </p></br>
+<hr>
+
+<!-- 内嵌的javascript代码 -->
+<script src="js/adapter.js"></script>
+<script>
+
+    async function getCodecInfo(rtsp_url) {
+
+        var req = {
+            url: rtsp_url,
+        };
+
+        console.log(JSON.stringify(req));
+
+        const url = '/api/get_codec_info';
+        const options = {method: "POST", body: JSON.stringify(req)};
+
+        // 发出http post请求, 等待响应
+        var response = await fetch(url, options);
+
+        if (response.ok) {
+            try {
+                var obj = await response.json();
+                console.log(JSON.stringify(obj));
+                return obj
+
+            } catch (e) {
+                console.warn(e)
+            }
+        }
+    }
+
+    async function exchangeSdp(localSdp) {
+
+        var req = {
+            sdp: localSdp,
+            url: document.getElementById("rtsp_url").value,
+        };
+
+        console.log(req.sdp.length);
+        console.log(JSON.stringify(req).length);
+
+        const url = '/api/exchange_sdp';
+        const options = {method: "POST", body: JSON.stringify(req)};
+
+        // 发出http post请求, 等待响应
+        var response = await fetch(url, options);
+
+        if (response.ok) {
+            try {
+                var obj = await response.json();
+                // console.log(JSON.stringify(obj));
+                console.log(obj.sdp.length);
+                console.log(JSON.stringify(obj).length);
+
+                return obj
+
+            } catch (e) {
+                console.warn(e)
+            }
+        }
+    }
+
+    async function handleNegotiationNeededEvent() {
+        //通过RTCPeerConnection所提供的createOffer()方法建立一个包含本机的SDP描述符的offer信令
+        let offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        // 交换sdp
+        let remoteSdp = await exchangeSdp(pc.localDescription.sdp);
+        // console.log(JSON.stringify(remoteSdp));
+
+        pc.setRemoteDescription(new RTCSessionDescription({
+            type: 'answer',
+            sdp: remoteSdp.sdp
+        }))
+
+    }
+
+
+    /**
+    * RTCPeerConnection简称PC	对等连接
+    * WebRTC使用RTCPeerConnection来在浏览器之间传递流数据，在建立RTCPeerConnection实例之后，想要使用其建立一个点对点的信道，我们需要做两件事:
+    * a. 确定本机上的媒体流的特性，比如分辨率、编解码能力啥的（SDP描述符）
+    * b. 连接两端的主机的网络地址（ICE Candidate）
+    * 1.建立一个RTCPeerConnection实例
+    * let config = {iceServers: [{urls: ["stun:stun.l.google.com:19302"]}]};
+    * const pc = new RTCPeerConnection(config);
+    */
+    const pc = new RTCPeerConnection(null);  //iceServer还没去研究 先置空
+
+
+    play_rtsp_url = async function() {
+        var rtsp_url = document.getElementById("rtsp_url").value;
+
+        // 获取流的媒体信息 用于判断后面需要添加的收发器类型和个数 (视频/音频)
+        // var codecInfo = await getCodecInfo(rtsp_url)
+
+
+        // 在要求sesssion协商时发生
+        pc.onnegotiationneeded = handleNegotiationNeededEvent;
+
+        // 在收到轨道数据时发生
+        pc.ontrack = function(event) {
+            console.log(event.streams.length + ' track is delivered')
+
+            var el = document.createElement(event.track.kind)
+            el.srcObject = event.streams[0]
+            el.muted = true
+            el.autoplay = true
+            el.controls = true
+            el.width = 600
+            document.getElementById('remoteVideos').appendChild(el)
+        }
+
+        /*
+        * 添加音视频流收发器
+        * [WebRTC 之 addTransceiver() 与 addTrack()](http://www.zyiz.net/tech/detail-118591.html)
+        * addTrack - 打开本地摄像头、麦克风
+        * addTransceiver - 收发器, 不需要使用摄像头、麦克风
+        *
+        * 执行完之后才会回调onnegotiationneeded, 进行媒体协商
+        * */
+        pc.addTransceiver('video', {
+            'direction': 'sendrecv'     // sendonly, recvonly, sendrecv
+        });
+
+        /*
+        //send ping becouse PION not handle RTCSessionDescription.close()
+        sendChannel = pc.createDataChannel('foo');
+        sendChannel.onclose = () => console.log('sendChannel has closed');
+        sendChannel.onopen = () => {
+         console.log('sendChannel has opened');
+         sendChannel.send('ping');
+         setInterval(() => {
+             sendChannel.send('ping');
+         }, 1000)
+        }
+
+        sendChannel.onmessage = e => log(`Message from DataChannel '${sendChannel.label}' payload '${e.data}'`);
+
+        */
+    }
+
+    stop_rtsp_url = function() {
+
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,34 @@
+syntax = "proto3";      //指明使用proto3语法,否则编译器默认使用proto2的语法
+option go_package = "../internal/logics/protos";
+
+
+/*
+protoc --go_out=plugins=grpc:. *.proto
+protoc-go-inject-tag -input=../internal/logics/protos/common.pb.go
+
+*/
+
+message Status{
+  // @inject_tag: json:"code"
+  int32 code = 1;
+  // @inject_tag: json:"message"
+  string message = 2;
+}
+
+message GetCodecInfoReq {
+  string url = 1;
+}
+
+message GetCodecInfoRsp {
+  Status status = 1;
+}
+
+message ExchangeSdpReq {
+  string url = 1;   // base64
+  string sdp = 2;   // base64
+}
+
+message ExchangeSdpRsp {
+  Status status = 1;
+  string sdp = 2;   // base64
+}
